@@ -1,4 +1,4 @@
 tasks:
-  - init: cd .. && mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ../dtq && ninja install
+  - init: cd .. && mkdir build && cd build && cmake -G "Ninja" -DCMAKE_BUILD_TYPE=RelWithDebInfo ../dtq && ninja install
 image:
   file: .gitpod.Dockerfile
