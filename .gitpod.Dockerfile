@@ -9,5 +9,4 @@ USER gitpod
 #
 # More information: https://www.gitgitpodpod.io/docs/config-docker/
 
-sudo apt-get -q update
-sudo apt-get install -yq vulkan
+RUN sudo apt-get -q update && sudo apt-get install -yq vulkan
