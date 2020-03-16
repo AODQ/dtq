@@ -9,4 +9,4 @@ USER gitpod
 #
 # More information: https://www.gitgitpodpod.io/docs/config-docker/
 
-RUN sudo apt-get -q update && sudo apt-get install -yq libvulkan1 libvulkan-dev vulkan-utils libglfw3 libglfw3-dev ninja-build
+RUN sudo apt-get -q update && sudo apt-get install -yq libvulkan1 mesa-vulkan-drivers libvulkan-dev vulkan-utils libglfw3 libglfw3-dev ninja-build
