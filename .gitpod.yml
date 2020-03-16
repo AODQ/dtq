@@ -1,0 +1,5 @@
+tasks:
+  - init: cd .. ; mkdir build ; cd build ; cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      ../dtq
+image:
+  file: .gitpod.Dockerfile
