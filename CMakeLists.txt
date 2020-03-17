@@ -13,6 +13,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_FLAGS "-Wall -fno-exceptions")
 
+set(CMAKE_PREFIX_PATH /usr/local/)
+
 add_compile_definitions(
   VULKAN_HPP_NO_EXCEPTIONS
   SPDLOG_NO_EXCEPTIONS
@@ -33,6 +35,20 @@ find_package(Vulkan  REQUIRED FATAL_ERROR)
 find_package(glfw3   REQUIRED FATAL_ERROR)
 find_package(glm     REQUIRED FATAL_ERROR)
 #find_package(glslang REQUIRED FATAL_ERROR)
+
+find_path(spdlog_INCLUDE_DIR spdlog/spdlog.h)
+find_library(spdlog_LIBRARY_NAMES NAMES libspdlog.a)
+find_package_handle_standard_args(
+  spdlog DEFAULT_MSG spdlog_LIBRARY_NAMES spdlog_INCLUDE_DIR
+)
+
+add_library(spdlog STATIC IMPORTED)
+set_target_properties(
+  spdlog
+  PROPERTIES
+    IMPORTED_LOCATION "${spdlog_LIBRARY_NAMES}"
+    INTERFACE_INCLUDE_DIRECTORIES "${spdlog_INCLUDE_DIR}"
+)
 
 ## source list for application (src/include)
 set(SOURCE_LIST
@@ -62,6 +78,7 @@ target_include_directories(
   PUBLIC ${GLFW_INCLUDE_DIRS}
   PUBLIC ${VULKAN_INCLUDE_DIRS}
   PUBLIC ${GLM_INCLUDE_DIRS}
+  PUBLIC ${SPDLOG_INCLUDE_DIRS}
 )
 target_sources(dtq PRIVATE ${SOURCE_LIST} ${HEADER_LIST})
 
