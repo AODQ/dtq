@@ -1,4 +1,4 @@
 tasks:
-  - init: cd .. && mkdir build && cd build && cmake -G "Ninja" -DCMAKE_BUILD_TYPE=RelWithDebInfo ../dtq && ninja install
+  - init: cd .. && git clone https://github.com/gabime/spdlog && cd spdlog && mkdir build && cd build && cmake .. && make -j && cd ../.. && mkdir build && cd build && cmake -G "Ninja" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_PREFIX_PATH=/workspace/spdlog/build/ ../dtq && ninja install
 image:
   file: .gitpod.Dockerfile
