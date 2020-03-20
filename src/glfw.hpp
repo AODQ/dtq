@@ -28,3 +28,6 @@ vk::SurfaceKHR ConstructWindowSurface(
 );
 
 std::vector<std::string> RequiredInstanceExtensions(const GlfwWindow& self);
+
+bool ShouldWindowClose(GlfwWindow & window);
+void PollEvents(GlfwWindow & window);

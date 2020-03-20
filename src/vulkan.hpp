@@ -1,9 +1,7 @@
 #pragma once
 
-#ifdef VULKAN_HPP_ASSERT
-#error Vulkan HPP Assert already defined
-#endif
-
 #include <spdlog/spdlog.h>
+#ifndef VULKAN_HPP_ASSERT
 #define VULKAN_HPP_ASSERT(X) if (!(X)) { spdlog::error("##X##"); }
+#endif
 #include <vulkan/vulkan.hpp>

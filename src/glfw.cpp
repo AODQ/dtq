@@ -30,8 +30,16 @@ vk::SurfaceKHR ConstructWindowSurface(
   VkSurfaceKHR rawSurface;
   auto result =
     static_cast<vk::Result>(
-      glfwCreateWindowSurface(instance, self.window, nullptr, &rawSurface)
+      glfwCreateWindowSurface(
+        static_cast<VkInstance>(instance)
+      , self.window
+      , nullptr
+      , &rawSurface
+      )
     );
+
+  if (result != vk::Result::eSuccess)
+    spdlog::error("Could not create window surface");
 
   auto cvrResult =
     vk::createResultValue(result, rawSurface, "vk::CommandBuffer::begin");
@@ -48,4 +56,14 @@ std::vector<std::string> RequiredInstanceExtensions(const GlfwWindow& self) {
   for (uint32_t i = 0; i < count && names && count; ++ i)
     result.emplace_back(names[i]);
   return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool ShouldWindowClose(GlfwWindow & window) {
+  return glfwWindowShouldClose(window.window);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+void PollEvents(GlfwWindow & window) {
+  glfwPollEvents();
 }

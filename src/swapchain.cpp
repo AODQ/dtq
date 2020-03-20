@@ -1,6 +1,33 @@
 #include "swapchain.hpp"
 
+#include "util.hpp"
+
 #include "graphicscontext.hpp"
+
+////////////////////////////////////////////////////////////////////////////////
+Swapchain::Swapchain(
+  GraphicsContext & context_,
+  vk::SurfaceKHR & surface_
+)
+: context{&context_}, surface{surface_}
+{
+  auto surfaceFormats =
+    this->context->physicalDevice.getSurfaceFormatsKHR(this->surface).value;
+
+  // if usrface format list only includes one with eUndefined, there is no
+  // preferred format, so assumed RGBA8
+  if ((surfaceFormats.size() == 1)
+   && (surfaceFormats[0].format == vk::Format::eUndefined)
+  ) {
+    this->colorFormat = vk::Format::eB8G8R8A8Unorm;
+  } else {
+    this->colorFormat = surfaceFormats[0].format;
+  }
+  this->colorSpace = surfaceFormats[0].colorSpace;
+
+  this->graphicsDeviceQueueIdx =
+    FindQueue(*this->context, vk::QueueFlagBits::eGraphics, this->surface);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 void Swapchain::Construct(const glm::uvec2& size)
@@ -8,10 +35,12 @@ void Swapchain::Construct(const glm::uvec2& size)
   vk::SwapchainKHR oldSwapchain = swapchain;
 
   vk::SurfaceCapabilitiesKHR surfaceCapabilities =
-    this->context->physicalDevice.getSurfaceCapabilitiesKHR(surface).value;
+    this->context->physicalDevice
+      .getSurfaceCapabilitiesKHR(this->surface).value;
 
   std::vector<vk::PresentModeKHR> presentModes =
-    this->context->physicalDevice.getSurfacePresentModesKHR(surface).value;
+    this->context->physicalDevice
+      .getSurfacePresentModesKHR(this->surface).value;
 
   if (surfaceCapabilities.currentExtent.width == static_cast<uint32_t>(-1)) {
     swapchainExtent.width = size.x;
@@ -42,51 +71,50 @@ void Swapchain::Construct(const glm::uvec2& size)
     desiredImages = surfaceCapabilities.maxImageCount;
   }
 
-  vk::SurfaceTransformFlagBitsKHR preTransform =
-      (surfaceCapabilities.supportedTransforms
-    & vk::SurfaceTransformFlagBitsKHR::eIdentity)
-  ? vk::SurfaceTransformFlagBitsKHR::eIdentity
-  : surfaceCapabilities.currentTransform
-  ;
 
-  (void)preTransform;
+  { // create swapchain
 
-  auto imageFormat =
-    this->context->physicalDevice
-      .getImageFormatProperties(
-        colorFormat,
-        vk::ImageType::e2D,
-        vk::ImageTiling::eOptimal,
-        vk::ImageUsageFlagBits::eColorAttachment,
-        vk::ImageCreateFlags()
+    vk::SurfaceTransformFlagBitsKHR preTransform =
+        (surfaceCapabilities.supportedTransforms
+      & vk::SurfaceTransformFlagBitsKHR::eIdentity)
+    ? vk::SurfaceTransformFlagBitsKHR::eIdentity
+    : surfaceCapabilities.currentTransform
+    ;
+
+    vk::SwapchainCreateInfoKHR swapchainCI;
+    swapchainCI.pNext = nullptr;
+    swapchainCI.flags = {};
+    swapchainCI.surface = this->surface;
+    swapchainCI.minImageCount = desiredImages;
+    swapchainCI.imageFormat = colorFormat;
+    swapchainCI.imageColorSpace = colorSpace;
+    swapchainCI.imageExtent = swapchainExtent;
+    swapchainCI.imageArrayLayers = 1;
+    swapchainCI.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+    swapchainCI.imageSharingMode = vk::SharingMode::eExclusive;
+    swapchainCI.queueFamilyIndexCount = 0;
+    swapchainCI.pQueueFamilyIndices = nullptr;
+    swapchainCI.preTransform = preTransform;
+    swapchainCI.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
+    swapchainCI.presentMode = swapchainPresentMode;
+    swapchainCI.clipped = VK_TRUE;
+    swapchainCI.oldSwapchain = oldSwapchain;
+
+    this->swapchain =
+      CheckReturn(
+        this->context->device->createSwapchainKHR(swapchainCI),
+        "Swapchain creation"
       );
-  (void)imageFormat;
+  }
 
-  vk::SwapchainCreateInfoKHR swapchainCI;
-  swapchainCI.pNext = nullptr;
-  swapchainCI.flags = {};
-  swapchainCI.surface = surface;
-  swapchainCI.minImageCount = desiredImages;
-  swapchainCI.imageFormat = colorFormat;
-  swapchainCI.imageColorSpace = colorSpace;
-  swapchainCI.imageExtent = swapchainExtent;
-  swapchainCI.imageArrayLayers = 1;
-  swapchainCI.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
-  swapchainCI.imageSharingMode = vk::SharingMode::eExclusive;
-  swapchainCI.queueFamilyIndexCount = 0;
-  swapchainCI.pQueueFamilyIndices = nullptr;
-  swapchainCI.preTransform = preTransform;
-  swapchainCI.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
-  swapchainCI.presentMode = swapchainPresentMode;
-  swapchainCI.clipped = true;
-  swapchainCI.oldSwapchain = oldSwapchain;
-
-  this->swapchain =
-    this->context->device->createSwapchainKHR(swapchainCI).value;
+  // finalize present info
+  presentInfo.swapchainCount = 1;
+  presentInfo.pSwapchains    = &swapchain;
+  presentInfo.pImageIndices  = &currentImage;
 
   // destroy old swapchain
-  if (oldSwapchain) {
-    for (uint32_t i = 0; i < this->imageCount; ++ i)
+  if (static_cast<bool>(oldSwapchain)) {
+    for (uint32_t i = 0; i < this->images.size(); ++ i)
       { this->context->device->destroyImageView(this->images[i].view); }
     this->context->device->destroySwapchainKHR(oldSwapchain);
   }
@@ -94,48 +122,28 @@ void Swapchain::Construct(const glm::uvec2& size)
   // TODO
   vk::ImageViewCreateInfo colorAttachmentView;
   colorAttachmentView.format = colorFormat;
-  colorAttachmentView.subresourceRange = {
-      .aspectMask = vk::ImageAspectFlagBits::eColor
-    , .levelCount = 1
-    , .layerCount = 1
-    };
-  colorAttachmentView.viewType = vk::ImageViewType::e2D;
+    colorAttachmentView.viewType = vk::ImageViewType::e2D;
+  { // subresource range
+    auto & range = colorAttachmentView.subresourceRange;
+    range.aspectMask     = vk::ImageAspectFlagBits::eColor;
+    range.levelCount     = 1;
+    range.layerCount     = 1;
+    range.baseMipLevel   = 0;
+    range.baseArrayLayer = 0;
+  }
 
   // get swapchain iamges
   auto swapchainImages =
     context->device->getSwapchainImagesKHR(swapchain).value;
-  imageCount = static_cast<uint32_t>(swapchainImages.size());
 
   // get swapchain buffers containing image and imageView
-  images.resize(imageCount);
-  for (uint32_t i = 0; i < imageCount; ++ i) {
+  images.resize(swapchainImages.size());
+  for (uint32_t i = 0; i < static_cast<uint32_t>(images.size()); ++ i) {
     images[i].image = swapchainImages[i];
     colorAttachmentView.image = swapchainImages[i];
     images[i].view =
       context->device->createImageView(colorAttachmentView).value;
   }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-void Swapchain::SetWindowSurface(const vk::SurfaceKHR& surface)
-{
-  this->surface = surface;
-  auto surfaceFormats =
-    this->context->physicalDevice.getSurfaceFormatsKHR(surface).value;
-
-  // if usrface format list only includes one with eUndefined, there is no
-  // preferred format, so assumed RGBA8
-  if ((surfaceFormats.size() == 1)
-   && (surfaceFormats[0].format == vk::Format::eUndefined)
-  ) {
-    colorFormat = vk::Format::eB8G8R8A8Unorm;
-  } else {
-    colorFormat = surfaceFormats[0].format;
-  }
-  colorSpace = surfaceFormats[0].colorSpace;
-
-  graphicsDeviceQueueIdx =
-    FindQueue(*context, vk::QueueFlagBits::eGraphics, surface);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,8 +157,8 @@ std::vector<vk::Framebuffer> Swapchain::CreateFramebuffers(
   fbCI.pAttachments = attachments.data();
 
   std::vector<vk::Framebuffer> framebuffers;
-  framebuffers.resize(imageCount);
-  for (uint32_t i = 0; i < imageCount; ++ i) {
+  framebuffers.resize(this->images.size());
+  for (uint32_t i = 0; i < static_cast<uint32_t>(this->images.size()); ++ i) {
     attachments[0] = images[i].view;
     framebuffers[i] = context->device->createFramebuffer(fbCI).value;
   }
@@ -205,13 +213,12 @@ vk::Fence const& Swapchain::GetSubmitFence() {
 vk::Result Swapchain::QueuePresent(vk::Semaphore const& waitSemaphore) {
   presentInfo.waitSemaphoreCount = waitSemaphore ? 1 : 0;
   presentInfo.pWaitSemaphores = &waitSemaphore;
-  return context->presentQueue.presentKHR(presentInfo);
+  return this->context->graphicsQueue.presentKHR(presentInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void Swapchain::Cleanup() {
-  for (uint32_t i = 0; i < imageCount; ++ i) {
-    auto& image = images[i];
+  for (auto const & image : images) {
     if (image.fence) {
       context->device->waitForFences(
         image.fence

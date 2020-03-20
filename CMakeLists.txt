@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 cmake_policy(VERSION 3.5)
 
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  message("[debug enabled]")
+else()
+  add_compile_definitions(NDEBUG)
+endif()
+
 project (
   dtq
   VERSION 0.0
